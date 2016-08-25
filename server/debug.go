@@ -23,9 +23,6 @@ import (
 	// Register the net/trace endpoint with http.DefaultServeMux.
 	"golang.org/x/net/trace"
 
-	"github.com/rcrowley/go-metrics"
-	"github.com/rcrowley/go-metrics/exp"
-
 	// This is imported for its side-effect of registering pprof endpoints with
 	// the http.DefaultServeMux.
 	_ "net/http/pprof"
@@ -36,7 +33,7 @@ import (
 const debugEndpoint = "/debug/"
 
 // We use the default http mux for the debug endpoint (as pprof and net/trace
-// register to that via import, and go-metrics registers to that via exp.Exp())
+// register to that via import.
 var debugServeMux = http.DefaultServeMux
 
 // handleDebug passes requests with the debugPathPrefix onto the default
@@ -93,7 +90,6 @@ table tr td {
 <tr>
 <td>metrics</td>
 <td>
-<a href="./metrics">variables</a>
 <a href="/_status/vars">prometheus</a>
 </td>
 </tr>
@@ -124,9 +120,4 @@ table tr td {
 </body></html>
 `)
 	})
-
-	// This registers a superset of the variables exposed through the /debug/vars endpoint
-	// onto the /debug/metrics endpoint. It includes all expvars registered globally and
-	// all metrics registered on the DefaultRegistry.
-	exp.Exp(metrics.DefaultRegistry)
 }

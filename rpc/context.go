@@ -17,6 +17,7 @@
 package rpc
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -44,11 +45,53 @@ const (
 	maximumPingDurationMult = 2
 )
 
+type metricInfo struct {
+	// the stream, for streaming RPCs.
+	grpc.ServerStream
+	// the full method name. eg: "/cockroach.rpc.Hearbeat/Ping"
+	method string
+	// Start time.
+	startTime time.Time
+}
+
+func (m metricInfo) String() string {
+	return fmt.Sprintf("%s (%s)", m.method, time.Since(m.startTime))
+}
+
+func (m *metricInfo) SendMsg(msg interface{}) error {
+	err := m.ServerStream.SendMsg(msg)
+	log.Infof(context.TODO(), "Stream: %s sent: %s", m, err)
+	return err
+}
+
+func (m *metricInfo) RecvMsg(msg interface{}) error {
+	err := m.ServerStream.RecvMsg(msg)
+	log.Infof(context.TODO(), "Stream: %s received: %s", m, err)
+	return err
+}
+
+func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	m := metricInfo{nil, info.FullMethod, time.Now()}
+	resp, err = handler(ctx, req)
+	// See google.golang.org/grpc/codes/codes.go for grpc codes.
+	log.Infof(context.TODO(), "Unary: %s code: %s", m, grpc.Code(err))
+	return resp, err
+}
+
+func streamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	m := metricInfo{ss, info.FullMethod, time.Now()}
+	err := handler(srv, &m)
+	log.Infof(context.TODO(), "Stream: client=%t server=%t %s code: %s", info.IsClientStream, info.IsServerStream, m, grpc.Code(err))
+	return err
+}
+
 // NewServer is a thin wrapper around grpc.NewServer that registers a heartbeat
 // service.
 func NewServer(ctx *Context) *grpc.Server {
 	opts := []grpc.ServerOption{
 		grpc.MaxMsgSize(math.MaxInt32), // TODO(peter,tamird): need tests before lowering
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
 	}
 	if !ctx.Insecure {
 		tlsConfig, err := ctx.GetServerTLSConfig()

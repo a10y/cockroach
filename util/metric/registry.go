@@ -175,8 +175,9 @@ func (r *Registry) PrintAsText(w io.Writer) error {
 			}
 			if prom, ok := v.(PrometheusExportable); ok {
 				metricFamily.Reset()
-				metricFamily.Name = proto.String(exportedName(metric.GetName()))
-				metricFamily.Help = proto.String(metric.GetHelp())
+				metricFamily.Name = proto.String(exportedName(prom.GetName()))
+				metricFamily.Help = proto.String(prom.GetHelp())
+				metricFamily.Type = prom.GetType()
 				prom.FillPrometheusMetric(&metricFamily)
 				if len(labels) != 0 {
 					// Set labels from registry. We only set one metric in the slice, but loop anyway.
